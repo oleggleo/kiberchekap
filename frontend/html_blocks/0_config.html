@@ -1,0 +1,22 @@
+<!-- Шрифты лендинга (Manrope / Unbounded / JetBrains Mono) -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<!-- ============================================================= -->
+<!-- ⚙️  НАСТРОЙКА БЭКЕНДА                                          -->
+<!-- Единственное место, где задаётся адрес сервера приёма заявок.  -->
+<!-- Поставьте сюда HTTPS-адрес своего бэкенда, например:           -->
+<!--     apiUrl: "https://api.вашдомен.ru"                          -->
+<!-- Пустая строка ""  = тот же домен, на котором стоит сайт.       -->
+<!--                                                                -->
+<!-- ВАЖНО для Тильды: адрес должен быть на HTTPS, иначе браузер    -->
+<!-- заблокирует запрос (mixed content). И бэкенд должен отдавать    -->
+<!-- CORS-заголовки для домена сайта (см. BACKEND_API.md).          -->
+<!-- ============================================================= -->
+<script>
+  var isLocal = ["localhost", "127.0.0.1"].indexOf(location.hostname) !== -1;
+  window.APP_CONFIG = {
+    apiUrl: isLocal ? "http://127.0.0.1:8013" : "https://api.cyberq.ru"
+  };
+</script>

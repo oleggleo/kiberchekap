@@ -1,0 +1,475 @@
+<!-- QUIZ MODAL -->
+<style>
+.qm-overlay{display:none;position:fixed;inset:0;z-index:600;background:rgba(0,0,0,0.6);align-items:center;justify-content:center;padding:16px}
+.qm-overlay.open{display:flex}
+.qm-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius2);width:100%;max-width:540px;max-height:90vh;overflow-y:auto}
+.qm-header{padding:18px 24px 14px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--surface);z-index:1}
+.qm-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.qm-label{font-size:12px;color:var(--muted2);font-family:var(--mono)}
+.qm-pct{font-size:12px;font-weight:600;color:var(--teal)}
+.qm-close{background:none;border:none;color:var(--muted2);font-size:20px;cursor:pointer;line-height:1;padding:0}
+.qm-bar-bg{height:3px;background:var(--bg2);border-radius:2px}
+.qm-bar-fill{height:100%;background:var(--teal);border-radius:2px;transition:width .4s ease}
+.qm-body{padding:24px}
+.qm-icon{width:40px;height:40px;border-radius:10px;background:var(--teal-dim);display:flex;align-items:center;justify-content:center;margin-bottom:14px}
+.qm-q{font-size:clamp(16px,1.4vw,20px);font-weight:700;color:var(--text);line-height:1.35;margin-bottom:6px}
+.qm-hint{font-size:13px;color:var(--muted2);margin-bottom:20px;line-height:1.5}
+.qm-options{display:flex;flex-direction:column;gap:8px}
+.qm-opt{display:flex;align-items:flex-start;gap:12px;border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;cursor:pointer;transition:all .15s}
+.qm-opt:hover{border-color:var(--teal);background:var(--teal-dim)}
+.qm-opt.sel{border-color:var(--teal);background:var(--teal-dim)}
+.qm-radio{width:18px;height:18px;border-radius:50%;border:1.5px solid var(--dim);flex-shrink:0;margin-top:2px;transition:all .15s}
+.qm-opt.sel .qm-radio{border-color:var(--teal);background:var(--teal);display:flex;align-items:center;justify-content:center}
+.qm-opt.sel .qm-radio::after{content:'';width:6px;height:6px;border-radius:50%;background:#fff}
+.qm-opt-title{font-size:14px;font-weight:600;color:var(--text)}
+.qm-opt-desc{font-size:12px;color:var(--muted2);margin-top:2px;line-height:1.4}
+.qm-custom-input{display:none;margin-top:8px}
+.qm-opt.sel .qm-custom-input{display:block}
+.qm-custom-input input{width:100%;border:1px solid var(--teal);border-radius:var(--radius);padding:7px 10px;font-size:13px;color:var(--text);font-family:var(--sans);outline:none;background:var(--surface)}
+.qm-nav{display:flex;justify-content:space-between;align-items:center;margin-top:20px}
+.qm-back{background:transparent;border:1px solid var(--border);color:var(--muted);padding:9px 18px;border-radius:var(--radius);font-size:13px;font-weight:600;cursor:pointer;transition:all .15s}
+.qm-back:hover{border-color:var(--teal);color:var(--teal)}
+.qm-back:disabled{opacity:0;pointer-events:none}
+.qm-next{background:var(--accent);color:#fff;border:none;padding:10px 24px;border-radius:var(--radius);font-size:14px;font-weight:700;cursor:pointer;transition:background .15s;display:flex;align-items:center;gap:6px}
+.qm-next:hover{background:var(--accent2)}
+.qm-next:disabled{opacity:.4;cursor:not-allowed}
+.qm-res-header{padding:20px 24px 16px;border-bottom:1px solid var(--border)}
+.qm-eyebrow{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--teal);margin-bottom:6px}
+.qm-res-title{font-size:clamp(16px,1.4vw,20px);font-weight:700;color:var(--text);line-height:1.3}
+.qm-badge{display:inline-flex;align-items:center;gap:8px;background:rgba(230,51,41,0.07);border:1px solid rgba(230,51,41,0.2);border-radius:var(--radius);padding:10px 14px;font-size:13px;font-weight:700;color:var(--accent);margin-bottom:18px}
+.qm-detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px}
+.qm-detail-block{background:var(--panel);border-radius:var(--radius);padding:12px 14px}
+.qm-detail-label{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--teal);margin-bottom:5px}
+.qm-detail-text{font-size:12px;color:var(--muted);line-height:1.5}
+.qm-actions{display:flex;gap:10px;flex-wrap:wrap}
+.qm-btn-primary{background:var(--accent);color:#fff;border:none;padding:10px 22px;border-radius:var(--radius);font-size:13px;font-weight:700;cursor:pointer;transition:background .15s}
+.qm-btn-primary:hover{background:var(--accent2)}
+.qm-btn-ghost{background:transparent;border:1px solid var(--border);color:var(--muted);padding:10px 18px;border-radius:var(--radius);font-size:13px;cursor:pointer;transition:all .15s}
+.qm-btn-ghost:hover{border-color:var(--teal);color:var(--teal)}
+@media(max-width:560px){.qm-detail-grid{grid-template-columns:1fr}}
+
+/* ─── QUIZ MODAL — mobile bottom-sheet ─── */
+@media(max-width:600px){
+  .qm-overlay{align-items:flex-end;padding:0}
+  .qm-box{
+    max-width:none;width:100%;
+    max-height:94vh;max-height:94dvh;
+    border-radius:20px 20px 0 0;border-bottom:none;
+    animation:qmSheetIn .34s cubic-bezier(.16,1,.3,1);
+  }
+  .qm-header,.qm-res-header{position:sticky;top:0;padding-top:20px}
+  .qm-header::before,.qm-res-header::before{
+    content:'';position:absolute;top:8px;left:50%;transform:translateX(-50%);
+    width:38px;height:4px;border-radius:3px;background:var(--dim);
+  }
+  .qm-body{padding:18px 16px calc(20px + env(safe-area-inset-bottom))}
+  .qm-q{font-size:18px}
+  .qm-hint{font-size:13.5px;margin-bottom:16px}
+  .qm-options{gap:9px}
+  .qm-opt{padding:14px}
+  .qm-opt-title{font-size:15px}
+  .qm-opt-desc{font-size:13px}
+  .qm-radio{width:20px;height:20px}
+  .qm-custom-input input{min-height:44px;font-size:15px}
+  .qm-nav{margin-top:18px;gap:10px}
+  .qm-back,.qm-next{min-height:48px;border-radius:12px;font-size:15px}
+  .qm-next{flex:1;justify-content:center}
+  .qm-back{padding:0 18px}
+  .qm-close{width:42px;height:42px;display:flex;align-items:center;justify-content:center;margin:-10px -10px 0 0;font-size:22px}
+  .qm-actions{flex-direction:column;gap:8px}
+  .qm-btn-primary,.qm-btn-ghost{width:100%;min-height:48px;font-size:14px}
+}
+@keyframes qmSheetIn{from{transform:translateY(100%)}to{transform:translateY(0)}}
+@media(prefers-reduced-motion:reduce){.qm-box{animation:none!important}}
+</style>
+
+<div class="qm-overlay" id="quizModal">
+  <div class="qm-box">
+    <div id="qmQuestionnaire">
+      <div class="qm-header">
+        <div class="qm-top">
+          <span class="qm-label" id="qmProgressLabel">Вопрос 1 из 7</span>
+          <div style="display:flex;align-items:center;gap:12px">
+            <span class="qm-pct" id="qmProgressPct">14%</span>
+            <button class="qm-close" onclick="closeQuizModal()" aria-label="Закрыть">✕</button>
+          </div>
+        </div>
+        <div class="qm-bar-bg"><div class="qm-bar-fill" id="qmProgressBar" style="width:14%"></div></div>
+      </div>
+      <div class="qm-body">
+        <div id="qmQuestionCard"></div>
+      </div>
+    </div>
+    <div id="qmResults" style="display:none">
+      <div class="qm-res-header" style="display:flex;justify-content:space-between;align-items:flex-start;padding:20px 24px 16px">
+        <div>
+          <div class="qm-eyebrow">Результат оценки</div>
+          <div class="qm-res-title">Ключевое Недопустимое событие<br>для вашего бизнеса</div>
+        </div>
+        <button class="qm-close" onclick="closeQuizModal()" style="margin-top:2px" aria-label="Закрыть">✕</button>
+      </div>
+      <div class="qm-body">
+        <div class="qm-badge" id="qmBadge">
+          <svg viewBox="0 0 18 18" fill="none" width="16" height="16"><path d="M9 1.5L2 5v5c0 4.14 2.94 8.015 7 9 4.06-.985 7-4.86 7-9V5L9 1.5z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+          <span id="qmEventName"></span>
+        </div>
+        <div class="qm-detail-grid" id="qmDetailGrid"></div>
+        <div class="qm-actions">
+          <button class="qm-btn-primary" onclick="closeQuizModal()">Заявка уже отправлена →</button>
+          <button class="qm-btn-ghost" onclick="qmReset()">Пройти заново</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+const QM_EVENTS=[
+  {name:"Утечка конфиденциальной информации",systems:"1С, CRM, файловые хранилища, базы клиентов",ways:"Компрометация учётных записей, эксплуатация уязвимостей",consequences:"Утечка данных, штрафы, репутационные потери",criteria:"Подтверждён доступ к целевой системе"},
+  {name:"Массовый захват ИТ-инфраструктуры",systems:"Серверы, домен, удалённый доступ, рабочие станции",ways:"Повышение привилегий, захват администраторских аккаунтов",consequences:"Потеря контроля, остановка деятельности, шифрование данных",criteria:"Получен полный административный доступ к домену"},
+  {name:"Компрометация аккаунта руководителя",systems:"Корпоративная почта, мессенджеры, ЭДО, банк",ways:"Фишинг, подбор учётных данных",consequences:"Мошенничество от имени директора, финансовые потери",criteria:"Подтверждён вход и возможность действий от имени руководителя"},
+  {name:"Захват управления сайтом или магазином",systems:"Сайт, интернет-магазин, мобильное приложение, БД",ways:"Уязвимости веб-приложений, доступ к CMS",consequences:"Остановка сервиса, дефейс, утечка данных покупателей",criteria:"Получен административный доступ к серверу или CMS"},
+  {name:"Несанкционированный вывод денежных средств",systems:"Системы ДБО, бухгалтерия, ЭП",ways:"Доступ к финансовым аккаунтам, подмена реквизитов",consequences:"Прямые финансовые потери, регуляторные санкции",criteria:"Подтверждена возможность создания или изменения платёжного поручения"}
+];
+const QM_QUESTIONS=[
+  {icon:'<svg viewBox="0 0 22 22" fill="none"><rect x="2" y="3" width="18" height="16" rx="2.5" stroke="#0a9396" stroke-width="1.8"/><path d="M7 8h8M7 12h5" stroke="#0a9396" stroke-width="1.8" stroke-linecap="round"/></svg>',text:"Чем занимается ваша компания?",hint:"Выберите наиболее подходящее описание основной деятельности",options:[{text:"Интернет-магазин / E-commerce",desc:"Продажи товаров или услуг онлайн",scores:[1,0,0,3,1]},{text:"B2B-услуги (консалтинг, IT, агентство)",desc:"Работа с корпоративными клиентами",scores:[2,1,1,0,0]},{text:"Финансы и бухгалтерия",desc:"Учёт, расчёты, работа с деньгами клиентов",scores:[1,0,1,0,3]},{text:"Производство или логистика",desc:"Промышленность, склады, доставка",scores:[1,3,1,0,0]},{text:"Розница или сфера услуг",desc:"Офлайн-торговля, сервисные компании",scores:[2,1,2,1,1]},{text:"Свой вариант",desc:"Опишите деятельность вашей компании",scores:[1,1,1,1,1],custom:true}]},
+  {icon:'<svg viewBox="0 0 22 22" fill="none"><circle cx="11" cy="8" r="4" stroke="#0a9396" stroke-width="1.8"/><path d="M4 19c0-3.866 3.134-7 7-7h0c3.866 0 7 3.134 7 7" stroke="#0a9396" stroke-width="1.8" stroke-linecap="round"/></svg>',text:"Сколько человек в вашей компании?",hint:"Размер компании влияет на характер наиболее вероятных угроз",options:[{text:"До 15 человек",desc:"Малый бизнес, все знают друг друга",scores:[1,0,2,1,1]},{text:"15–100 человек",desc:"Есть отделы, но без крупной ИТ-службы",scores:[2,1,1,1,2]},{text:"100–500 человек",desc:"Средний бизнес с ИТ-подразделением",scores:[1,2,1,1,1]},{text:"Более 500 человек",desc:"Крупный бизнес с развитой инфраструктурой",scores:[1,3,0,1,1]}]},
+  {icon:'<svg viewBox="0 0 22 22" fill="none"><ellipse cx="11" cy="11" rx="9" ry="9" stroke="#0a9396" stroke-width="1.8"/><path d="M11 2v9l5 3" stroke="#0a9396" stroke-width="1.8" stroke-linecap="round"/></svg>',text:"Что в вашем бизнесе наиболее ценно в цифровом пространстве?",hint:"Выберите наиболее значимый цифровой актив",options:[{text:"Базы клиентов, договоры и коммерческая тайна",scores:[3,0,0,0,0]},{text:"ИТ-серверы и корпоративная инфраструктура",scores:[0,3,0,0,0]},{text:"Учётные данные и устройства руководителя",scores:[0,0,3,0,0]},{text:"Сайт, магазин или мобильное приложение",scores:[0,0,0,3,0]},{text:"Финансовые системы и расчётные счета",scores:[0,0,0,0,3]}]},
+  {icon:'<svg viewBox="0 0 22 22" fill="none"><path d="M11 3L3 7v5c0 4.142 3.358 8.01 8 9 4.642-.99 8-4.858 8-9V7L11 3z" stroke="#0a9396" stroke-width="1.8" stroke-linejoin="round"/><path d="M8 11l2 2 4-4" stroke="#0a9396" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',text:"Какое событие нанесёт максимальный ущерб вашему бизнесу?",hint:"Представьте наихудший сценарий",options:[{text:"Конкуренты получили доступ к нашей клиентской базе",scores:[3,0,0,0,0]},{text:"Все ИТ-системы зашифрованы или выведены из строя",scores:[0,3,0,0,0]},{text:"От имени директора проводятся мошеннические сделки",scores:[0,0,3,0,0]},{text:"Наш сайт / магазин недоступен несколько дней",scores:[0,0,0,3,0]},{text:"Со счетов компании похищены деньги",scores:[0,0,0,0,3]}]},
+  {icon:'<svg viewBox="0 0 22 22" fill="none"><rect x="3" y="4" width="16" height="14" rx="2" stroke="#0a9396" stroke-width="1.8"/><path d="M3 9h16M8 4v5M14 4v5" stroke="#0a9396" stroke-width="1.8" stroke-linecap="round"/></svg>',text:"Есть ли у вас сайт или онлайн-сервис, критически важный для работы?",hint:"Насколько остановка сайта парализует работу",options:[{text:"Да - это основной канал продаж",desc:"Без него бизнес фактически останавливается",scores:[0,0,0,3,0]},{text:"Да - есть сайт, но он второстепенен",desc:"Потеря на несколько дней терпима",scores:[0,0,0,1,0]},{text:"Нет публичного онлайн-сервиса",scores:[1,1,0,0,1]}]},
+  {icon:'<svg viewBox="0 0 22 22" fill="none"><rect x="4" y="6" width="14" height="10" rx="2" stroke="#0a9396" stroke-width="1.8"/><path d="M8 6V5a3 3 0 016 0v1M11 12v-2" stroke="#0a9396" stroke-width="1.8" stroke-linecap="round"/><circle cx="11" cy="13" r="1" fill="#0a9396"/></svg>',text:"Как проводятся финансовые операции в вашей компании?",hint:"Расскажите о процессе платежей",options:[{text:"Через интернет-банк без бумажного согласования",desc:"Платежи онлайн с минимальным контролем",scores:[0,0,0,0,3]},{text:"ДБО с согласованием внутри компании",scores:[0,0,1,0,2]},{text:"Через бухгалтера с ручным подтверждением",scores:[1,0,1,0,2]},{text:"Преимущественно наличными / без ДБО",scores:[1,1,1,0,0]}]},
+  {icon:'<svg viewBox="0 0 22 22" fill="none"><path d="M11 2l2.09 6.26H19.5l-5.27 3.84 2.01 6.26L11 14.52l-5.24 3.84 2.01-6.26L2.5 8.26H8.9L11 2z" stroke="#0a9396" stroke-width="1.8" stroke-linejoin="round"/></svg>',text:"Какая киберугроза вас беспокоит больше всего?",hint:"Выберите сценарий, которого вы опасаетесь в первую очередь",options:[{text:"Кража данных клиентов или конкурентная разведка",scores:[3,0,0,0,0]},{text:"Шифровальщики и остановка работы",scores:[0,3,0,0,0]},{text:"Взлом почты или аккаунтов руководства",scores:[0,0,3,0,0]},{text:"DDoS-атаки и взлом сайта",scores:[0,0,0,3,0]},{text:"Финансовое мошенничество и кража средств",scores:[0,0,0,0,3]}]}
+];
+
+let qmCurrent=0, qmAnswers=new Array(QM_QUESTIONS.length).fill(null), qmCustomText='', qmScores=[0,0,0,0,0];
+
+let qmLeadId = null;
+
+window.openQuizModal=function(leadId){
+  qmLeadId = leadId || null;
+  qmCurrent=0; qmAnswers=new Array(QM_QUESTIONS.length).fill(null); qmCustomText=''; qmScores=[0,0,0,0,0];
+  document.getElementById('qmQuestionnaire').style.display='block';
+  document.getElementById('qmResults').style.display='none';
+  document.getElementById('quizModal').classList.add('open');
+  document.body.style.overflow='hidden';
+  qmRender();
+};
+window.closeQuizModal=function(){
+  document.getElementById('quizModal').classList.remove('open');
+  document.body.style.overflow='';
+};
+window.qmReset=function(){
+  qmCurrent=0; qmAnswers=new Array(QM_QUESTIONS.length).fill(null); qmCustomText=''; qmScores=[0,0,0,0,0];
+  document.getElementById('qmQuestionnaire').style.display='block';
+  document.getElementById('qmResults').style.display='none';
+  qmRender();
+};
+
+function qmRender(){
+  const q=QM_QUESTIONS[qmCurrent];
+  const pct=Math.round(((qmCurrent+1)/QM_QUESTIONS.length)*100);
+  document.getElementById('qmProgressLabel').textContent=`Вопрос ${qmCurrent+1} из ${QM_QUESTIONS.length}`;
+  document.getElementById('qmProgressPct').textContent=pct+'%';
+  document.getElementById('qmProgressBar').style.width=pct+'%';
+  const sel=qmAnswers[qmCurrent];
+  const opts=q.options.map((o,i)=>`
+    <div class="qm-opt ${sel===i?'sel':''}" onclick="qmSelect(${i})">
+      <div class="qm-radio"></div>
+      <div style="flex:1">
+        <div class="qm-opt-title">${o.text}</div>
+        ${o.desc?`<div class="qm-opt-desc">${o.desc}</div>`:''}
+        ${o.custom?`<div class="qm-custom-input"><input type="text" id="qmCustomInput" placeholder="Например: строительство, образование…" value="${sel===i?qmCustomText:''}" onclick="event.stopPropagation()" oninput="qmCustomText=this.value"/></div>`:''}
+      </div>
+    </div>`).join('');
+  document.getElementById('qmQuestionCard').innerHTML=`
+    <div class="qm-icon">${q.icon}</div>
+    <div class="qm-q">${q.text}</div>
+    <div class="qm-hint">${q.hint}</div>
+    <div class="qm-options">${opts}</div>
+    <div class="qm-nav">
+      <button class="qm-back" onclick="qmBack()" ${qmCurrent===0?'disabled':''}>← Назад</button>
+      <button class="qm-next" onclick="qmNext()" ${sel===null?'disabled':''}>
+        ${qmCurrent<QM_QUESTIONS.length-1?'Далее':'Получить результат'}
+        <svg viewBox="0 0 16 16" fill="none" width="14" height="14"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </div>`;
+}
+
+window.qmSelect=function(i){qmAnswers[qmCurrent]=i;qmRender();};
+window.qmBack=function(){if(qmCurrent>0){qmCurrent--;qmRender();}};
+window.qmNext=function(){
+  if(qmAnswers[qmCurrent]===null)return;
+  if(qmCurrent<QM_QUESTIONS.length-1){qmCurrent++;qmRender();}
+  else{qmShowResults();}
+};
+
+function qmShowResults(){
+  qmScores=[0,0,0,0,0];
+  qmAnswers.forEach((ans,qi)=>{
+    if(ans!==null) QM_QUESTIONS[qi].options[ans].scores.forEach((s,ei)=>{qmScores[ei]+=s;});
+  });
+  const topIdx=qmScores.indexOf(Math.max(...qmScores));
+  const ev=QM_EVENTS[topIdx];
+  document.getElementById('qmEventName').textContent=ev.name;
+  document.getElementById('qmDetailGrid').innerHTML=`
+    <div class="qm-detail-block"><div class="qm-detail-label">Целевые системы</div><div class="qm-detail-text">${ev.systems}</div></div>
+    <div class="qm-detail-block"><div class="qm-detail-label">Способы реализации</div><div class="qm-detail-text">${ev.ways}</div></div>
+    <div class="qm-detail-block"><div class="qm-detail-label">Возможные последствия</div><div class="qm-detail-text">${ev.consequences}</div></div>
+    <div class="qm-detail-block"><div class="qm-detail-label">Критерий достижения</div><div class="qm-detail-text">${ev.criteria}</div></div>`;
+  document.getElementById('qmQuestionnaire').style.display='none';
+  document.getElementById('qmResults').style.display='block';
+  // Отправляем cyber_problem в БД
+  if(qmLeadId){
+    fetch(apiUrl(`/leads/${qmLeadId}`), {
+      method: 'PATCH',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({cyber_problem: ev.name})
+    }).catch(e=>console.warn('PATCH lead failed:', e));
+  }
+}
+
+document.getElementById('quizModal').addEventListener('click',function(e){if(e.target===this)closeQuizModal();});
+})();
+</script>
+
+<script>
+(function(){
+  function init(){
+    var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+    var hasIO  = 'IntersectionObserver' in window;
+
+    /* - reading progress + nav elevation - */
+    var bar=document.createElement('div');
+    bar.className='read-progress';
+    document.body.appendChild(bar);
+    var nav=document.querySelector('nav');
+    function onScroll(){
+      var h=document.documentElement;
+      var max=(h.scrollHeight-h.clientHeight)||1;
+      bar.style.width=Math.min(100,(window.scrollY/max)*100)+'%';
+      if(nav)nav.classList.toggle('scrolled', window.scrollY>12);
+    }
+    window.addEventListener('scroll',onScroll,{passive:true});
+    onScroll();
+
+    /* - scroll reveal - */
+    var sels=['.hero-left > *','.hero-interactive > *','.section-header',
+      '#ns-definition .wrap > div > div','.benefit-card','.seg-card',
+      '.mz-col','.faq-item','.cta-left > div',
+      '[id="pricing"] .lead','[id="pricing"] [style*="flex-wrap:wrap"]'];
+    var nodes=[];
+    sels.forEach(function(s){
+      try{
+        document.querySelectorAll(s).forEach(function(el){
+          if(nodes.indexOf(el)<0){nodes.push(el);el.classList.add('reveal');}
+        });
+      }catch(e){}
+    });
+    if(reduce || !hasIO){
+      nodes.forEach(function(el){el.classList.add('in');});
+    } else {
+      var io=new IntersectionObserver(function(entries){
+        entries.forEach(function(en){
+          if(!en.isIntersecting)return;
+          var el=en.target;
+          var sibs=[].slice.call(el.parentNode.children).filter(function(c){
+            return c.classList && c.classList.contains('reveal');
+          });
+          var idx=sibs.indexOf(el);
+          el.style.transitionDelay=(Math.max(0,idx)*70)+'ms';
+          el.classList.add('in');
+          io.unobserve(el);
+        });
+      },{threshold:0.12,rootMargin:'0px 0px -8% 0px'});
+      nodes.forEach(function(el){io.observe(el);});
+    }
+
+    /* - infographic bars: reset then fill on view - */
+    var bars=document.querySelectorAll('.bi-bar');
+    bars.forEach(function(b){ b.dataset.w=b.style.width||'0%'; b.style.width='0%'; });
+    if(hasIO && !reduce){
+      var bio=new IntersectionObserver(function(entries){
+        entries.forEach(function(en){
+          if(!en.isIntersecting)return;
+          en.target.querySelectorAll('.bi-bar').forEach(function(b){
+            setTimeout(function(){ b.style.width=b.dataset.w||'0%'; },120);
+          });
+          bio.unobserve(en.target);
+        });
+      },{threshold:0.25});
+      document.querySelectorAll('.benefit-infograph').forEach(function(g){bio.observe(g);});
+    } else {
+      bars.forEach(function(b){ b.style.width=b.dataset.w||'0%'; });
+    }
+
+    /* - cursor spotlight on NS + methodology cards (tilt cards set --mx/--my themselves) - */
+    document.querySelectorAll('.ns-card,.mz-card').forEach(function(c){
+      c.addEventListener('pointermove',function(e){
+        var r=c.getBoundingClientRect();
+        c.style.setProperty('--mx',(e.clientX-r.left)+'px');
+        c.style.setProperty('--my',(e.clientY-r.top)+'px');
+      },{passive:true});
+    });
+  }
+
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);
+  else init();
+})();
+</script>
+
+<script>
+(function(){
+  var cv=document.getElementById('heroNet');
+  if(!cv||!cv.getContext)return;
+  var ctx=cv.getContext('2d');
+  var reduce=window.matchMedia&&window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+  var DPR=Math.min(window.devicePixelRatio||1,2);
+  var W=1,H=1,running=false,raf=0,last=0;
+
+  function size(){
+    var r=cv.getBoundingClientRect();
+    W=Math.max(1,r.width);H=Math.max(1,r.height);
+    cv.width=Math.round(W*DPR);cv.height=Math.round(H*DPR);
+    ctx.setTransform(DPR,0,0,DPR,0,0);
+  }
+
+  function rnd(a,b){return a+(b-a)*Math.random();}
+  var N=46, nodes=[], i, j;
+  nodes.push({x:0,y:0,z:0,core:true,threat:false,r:5.2,ph:0});  // protected core
+  for(i=0;i<N;i++){
+    var u=Math.random(),v=Math.random();
+    var th=2*Math.PI*u, ph=Math.acos(2*v-1), rr=rnd(0.62,1.0);
+    nodes.push({
+      x:rr*Math.sin(ph)*Math.cos(th),
+      y:rr*Math.sin(ph)*Math.sin(th)*0.82,
+      z:rr*Math.cos(ph),
+      core:false, threat:Math.random()<0.12,
+      r:rnd(1.6,2.8), ph:Math.random()*6.28
+    });
+  }
+  var edges=[], adj=nodes.map(function(){return [];});
+  for(i=0;i<nodes.length;i++){
+    for(j=i+1;j<nodes.length;j++){
+      var a=nodes[i],b=nodes[j];
+      var d=Math.sqrt((a.x-b.x)*(a.x-b.x)+(a.y-b.y)*(a.y-b.y)+(a.z-b.z)*(a.z-b.z));
+      if(d<0.55){edges.push([i,j,d]);adj[i].push(j);adj[j].push(i);}
+    }
+  }
+
+  function distToCore(idx){var n=nodes[idx];return Math.sqrt(n.x*n.x+n.y*n.y+n.z*n.z);}
+  function pickNext(cur,prev){
+    var ns=adj[cur];if(!ns.length)return cur;
+    var best=ns[0],bd=1e9;
+    for(var k=0;k<ns.length;k++){
+      var cand=ns[k];if(cand===prev&&ns.length>1)continue;
+      var dd=distToCore(cand)+Math.random()*0.15;
+      if(dd<bd){bd=dd;best=cand;}
+    }
+    return best;
+  }
+  var packets=[], bursts=[];
+  function spawnPacket(){
+    var ti=[];for(var q=1;q<nodes.length;q++)if(nodes[q].threat&&adj[q].length)ti.push(q);
+    if(!ti.length)return;
+    var from=ti[(Math.random()*ti.length)|0];
+    packets.push({from:from,to:pickNext(from,from),t:Math.random()*0.3});
+  }
+
+  var rx=0.32, ry=0, trx=0.32, tryw=0, mx=0.5, my=0.5, hasPointer=false;
+  var host=cv.parentNode;
+  host.addEventListener('pointermove',function(e){
+    var r=host.getBoundingClientRect();
+    mx=(e.clientX-r.left)/r.width; my=(e.clientY-r.top)/r.height; hasPointer=true;
+  },{passive:true});
+  host.addEventListener('pointerleave',function(){hasPointer=false;},{passive:true});
+
+  var TEAL=[10,147,150], TEAL2=[0,95,115], RED=[230,51,41];
+  function rgba(c,a){return 'rgba('+c[0]+','+c[1]+','+c[2]+','+a+')';}
+
+  function project(n,cx,cy,scale,cyA,syA,cxA,sxA){
+    var x=n.x*cyA - n.z*syA, z=n.x*syA + n.z*cyA;
+    var y=n.y*cxA - z*sxA, z2=n.y*sxA + z*cxA;
+    var p=1.9/(1.9 - z2);
+    return {sx:cx+x*scale*p, sy:cy+y*scale*p, depth:(z2+1)/2, p:p};
+  }
+
+  function frame(ts){
+    if(!last)last=ts;var dt=Math.min((ts-last)/1000,0.05);last=ts;
+    if(hasPointer){trx=0.32+(my-0.5)*0.9; tryw=(mx-0.5)*1.3;}
+    else {tryw+=dt*0.16; trx=0.32+Math.sin(ts/3400)*0.12;}
+    rx+=(trx-rx)*0.06; ry+=(tryw-ry)*0.06;
+
+    var cx=W*0.64, cy=H*0.46, scale=Math.min(W,H)*0.44;
+    var cyA=Math.cos(ry),syA=Math.sin(ry),cxA=Math.cos(rx),sxA=Math.sin(rx);
+    ctx.clearRect(0,0,W,H);
+
+    for(i=0;i<nodes.length;i++){
+      var pr=project(nodes[i],cx,cy,scale,cyA,syA,cxA,sxA);
+      nodes[i]._sx=pr.sx;nodes[i]._sy=pr.sy;nodes[i]._d=pr.depth;nodes[i]._p=pr.p;
+    }
+    for(i=0;i<edges.length;i++){
+      var e=edges[i],na=nodes[e[0]],nb=nodes[e[1]];
+      var dep=(na._d+nb._d)/2, al=(0.05+dep*0.16)*(1-e[2]/0.55*0.5);
+      ctx.beginPath();ctx.moveTo(na._sx,na._sy);ctx.lineTo(nb._sx,nb._sy);
+      ctx.strokeStyle=rgba(TEAL,al);ctx.lineWidth=0.6+dep*0.8;ctx.stroke();
+    }
+    if(!reduce){
+      if(packets.length<5 && Math.random()<0.045) spawnPacket();
+      for(i=packets.length-1;i>=0;i--){
+        var pk=packets[i];pk.t+=dt*0.9;
+        var A=nodes[pk.from],B=nodes[pk.to];
+        if(pk.t>=1){
+          if(B.core||distToCore(pk.to)<0.20){bursts.push({x:B._sx,y:B._sy,t:0});packets.splice(i,1);continue;}
+          var nx=pickNext(pk.to,pk.from);pk.from=pk.to;pk.to=nx;pk.t=0;continue;
+        }
+        var px=A._sx+(B._sx-A._sx)*pk.t, py=A._sy+(B._sy-A._sy)*pk.t;
+        ctx.beginPath();ctx.arc(px,py,2.2,0,6.2832);
+        ctx.fillStyle=rgba(RED,0.9);ctx.shadowColor=rgba(RED,0.7);ctx.shadowBlur=8;ctx.fill();ctx.shadowBlur=0;
+      }
+    }
+    for(i=bursts.length-1;i>=0;i--){
+      var bs=bursts[i];bs.t+=dt*2.2;if(bs.t>=1){bursts.splice(i,1);continue;}
+      ctx.beginPath();ctx.arc(bs.x,bs.y,6+bs.t*22,0,6.2832);
+      ctx.strokeStyle=rgba(TEAL,(1-bs.t)*0.5);ctx.lineWidth=2*(1-bs.t);ctx.stroke();
+    }
+    var order=nodes.slice().sort(function(a,b){return a._d-b._d;});
+    for(i=0;i<order.length;i++){
+      var n=order[i], d=n._d, R=n.r*(0.6+d*0.7)*n._p;
+      if(n.core){
+        var pulse=0.5+0.5*Math.sin(ts/600);
+        var g=ctx.createRadialGradient(n._sx,n._sy,0,n._sx,n._sy,R*5);
+        g.addColorStop(0,rgba(TEAL,0.5));g.addColorStop(1,rgba(TEAL,0));
+        ctx.beginPath();ctx.arc(n._sx,n._sy,R*5,0,6.2832);ctx.fillStyle=g;ctx.fill();
+        ctx.beginPath();ctx.arc(n._sx,n._sy,R+pulse*1.5,0,6.2832);ctx.fillStyle=rgba(TEAL2,0.95);ctx.fill();
+        ctx.lineWidth=1.4;ctx.strokeStyle='rgba(255,255,255,0.85)';ctx.stroke();
+        continue;
+      }
+      var col=n.threat?RED:TEAL, a2=0.35+d*0.55;
+      if(n.threat){
+        var tp=0.5+0.5*Math.sin(ts/420+n.ph); a2=0.5+tp*0.45;
+        var gg=ctx.createRadialGradient(n._sx,n._sy,0,n._sx,n._sy,R*4);
+        gg.addColorStop(0,rgba(RED,0.32*tp));gg.addColorStop(1,rgba(RED,0));
+        ctx.beginPath();ctx.arc(n._sx,n._sy,R*4,0,6.2832);ctx.fillStyle=gg;ctx.fill();
+      }
+      ctx.beginPath();ctx.arc(n._sx,n._sy,R,0,6.2832);ctx.fillStyle=rgba(col,a2);ctx.fill();
+    }
+    if(running) raf=requestAnimationFrame(frame);
+  }
+  function start(){if(running)return;running=true;last=0;raf=requestAnimationFrame(frame);}
+  function stop(){running=false;cancelAnimationFrame(raf);}
+
+  size();
+  window.addEventListener('resize',function(){size();},{passive:true});
+  window.addEventListener('load',function(){size(); if(reduce)requestAnimationFrame(function(ts){frame(ts);});},{passive:true});
+  if(reduce){ requestAnimationFrame(function(ts){frame(ts);}); }
+  else {
+    start();
+    if('IntersectionObserver'in window){
+      new IntersectionObserver(function(es){
+        es.forEach(function(en){ if(en.isIntersecting)start(); else stop(); });
+      },{threshold:0}).observe(cv);
+    }
+  }
+})();
+</script>

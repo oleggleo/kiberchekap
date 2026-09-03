@@ -1,0 +1,686 @@
+<script>
+// ─── Адрес бэкенда меняется в отдельном блоке "0_config" (window.APP_CONFIG.apiUrl).
+//     Строка ниже — запасной вариант на случай, если блок-конфиг не подключён. НЕ редактируйте здесь.
+window.APP_CONFIG = window.APP_CONFIG || { apiUrl: "" };
+function apiUrl(path){ return ((window.APP_CONFIG && window.APP_CONFIG.apiUrl) || '') + path; }
+
+// Ссылка "Скачать исследование" — берётся с того же бэкенда (apiUrl). Файл должен лежать на сервере по пути /files/ns_2025.pdf
+(function(){ var dl=document.getElementById('dl-research'); if(dl && window.APP_CONFIG && window.APP_CONFIG.apiUrl){ dl.href=apiUrl('/files/ns_2025.pdf'); } })();
+
+// ─── Burger menu
+function toggleMenu(){
+  const btn=document.getElementById('burgerBtn');
+  const menu=document.getElementById('mobileMenu');
+  btn.classList.toggle('open');
+  menu.classList.toggle('open');
+}
+function closeMenu(){
+  document.getElementById('burgerBtn').classList.remove('open');
+  document.getElementById('mobileMenu').classList.remove('open');
+}
+
+// ─── FAQ toggle
+function toggleFaq(btn){
+  const item=btn.closest('.faq-item');
+  const isOpen=item.classList.contains('open');
+  document.querySelectorAll('.faq-item.open').forEach(i=>i.classList.remove('open'));
+  if(!isOpen)item.classList.add('open');
+}
+
+// ─── Form validation helpers
+function setError(inputId, errId, show){
+  const inp = document.getElementById(inputId);
+  const err = document.getElementById(errId);
+  if(!inp||!err) return;
+  if(show){ inp.classList.add('invalid'); inp.classList.remove('valid'); err.classList.add('show'); }
+  else { inp.classList.remove('invalid'); inp.classList.add('valid'); err.classList.remove('show'); }
+}
+function clearError(inputId, errId){
+  const inp = document.getElementById(inputId);
+  const err = document.getElementById(errId);
+  if(inp){ inp.classList.remove('invalid','valid'); }
+  if(err){ err.classList.remove('show'); }
+}
+
+// ─── Live validation on blur
+document.addEventListener('DOMContentLoaded', function(){
+  document.getElementById('f_name').addEventListener('blur', function(){
+    setError('f_name','err_name', this.value.trim().length < 2);
+  });
+  document.getElementById('f_email').addEventListener('blur', function(){
+    const ok = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(this.value.trim());
+    setError('f_email','err_email', !ok && this.value.trim().length > 0);
+  });
+  document.getElementById('f_inn').addEventListener('blur', function(){
+    const v = this.value.replace(/\D/g,'');
+    setError('f_inn','err_inn', v.length > 0 && v.length !== 10 && v.length !== 12);
+  });
+});
+
+// ─── Подсказки ОКВЭД
+const OKVED_MIN_LENGTH = 3;
+const OKVED_DEBOUNCE_MS = 250;
+
+let okvedTimer = null;
+let okvedItems = [];
+let okvedActive = -1;
+let okvedRequestId = 0;
+
+function okvedHint(text, warn){
+  const hint = document.getElementById('okved-hint');
+  if(!hint) return;
+  hint.textContent = text;
+  hint.classList.toggle('warn', !!warn);
+}
+
+function okvedClosePanel(){
+  const list = document.getElementById('okved-list');
+  const input = document.getElementById('f_okved');
+  list.hidden = true;
+  list.innerHTML = '';
+  input.setAttribute('aria-expanded','false');
+  input.removeAttribute('aria-activedescendant');
+  okvedItems = [];
+  okvedActive = -1;
+}
+
+function okvedClearChoice(){
+  document.getElementById('f_okved_code').value = '';
+  document.getElementById('f_okved_name').value = '';
+  const badge = document.getElementById('okved-badge');
+  badge.hidden = true;
+  badge.textContent = '';
+}
+
+function okvedHighlight(index){
+  const list = document.getElementById('okved-list');
+  const input = document.getElementById('f_okved');
+  const options = list.querySelectorAll('.okved-option');
+  options.forEach(el => el.classList.remove('active'));
+  okvedActive = index;
+  if(index < 0 || index >= options.length){
+    input.removeAttribute('aria-activedescendant');
+    return;
+  }
+  const current = options[index];
+  current.classList.add('active');
+  current.scrollIntoView({block:'nearest'});
+  input.setAttribute('aria-activedescendant', current.id);
+}
+
+function okvedChoose(index){
+  const item = okvedItems[index];
+  if(!item) return;
+  document.getElementById('f_okved').value = item.name;
+  document.getElementById('f_okved_code').value = item.code;
+  document.getElementById('f_okved_name').value = item.name;
+  const badge = document.getElementById('okved-badge');
+  badge.textContent = item.code;
+  badge.hidden = false;
+  okvedHint('Код ' + item.code + ' подобран, при желании поправьте вручную', false);
+  okvedClosePanel();
+}
+
+function okvedRender(items){
+  const list = document.getElementById('okved-list');
+  const input = document.getElementById('f_okved');
+  okvedItems = items;
+  list.innerHTML = '';
+
+  if(!items.length){
+    const empty = document.createElement('li');
+    empty.className = 'okved-empty';
+    empty.textContent = 'Ничего не нашли — оставьте описание своими словами';
+    list.appendChild(empty);
+  } else {
+    items.forEach((item, index) => {
+      const option = document.createElement('li');
+      option.className = 'okved-option';
+      option.id = 'okved-option-' + index;
+      option.setAttribute('role','option');
+      option.setAttribute('aria-selected','false');
+      const code = document.createElement('span');
+      code.className = 'okved-code';
+      code.textContent = item.code;
+      const name = document.createElement('span');
+      name.textContent = item.name;
+      option.appendChild(code);
+      option.appendChild(name);
+      option.addEventListener('mousedown', event => {
+        event.preventDefault();
+        okvedChoose(index);
+      });
+      list.appendChild(option);
+    });
+  }
+
+  list.hidden = false;
+  input.setAttribute('aria-expanded','true');
+  okvedHighlight(-1);
+}
+
+async function okvedFetch(query){
+  const requestId = ++okvedRequestId;
+  okvedHint('Ищем подходящие коды…', false);
+  try{
+    const res = await fetch(apiUrl('/okved/suggest?limit=5&q=' + encodeURIComponent(query)));
+    if(!res.ok) throw new Error('bad status');
+    const data = await res.json();
+    if(requestId !== okvedRequestId) return;
+    okvedRender(data.items || []);
+    okvedHint('Выберите подходящий код или впишите своими словами', false);
+  } catch(e){
+    if(requestId !== okvedRequestId) return;
+    okvedClosePanel();
+    okvedHint('Подсказки сейчас недоступны — впишите вид деятельности вручную', true);
+  }
+}
+
+document.addEventListener('DOMContentLoaded', function(){
+  const input = document.getElementById('f_okved');
+  if(!input) return;
+
+  input.addEventListener('input', function(){
+    okvedClearChoice();
+    clearTimeout(okvedTimer);
+    const query = this.value.trim();
+    if(query.length < OKVED_MIN_LENGTH){
+      okvedClosePanel();
+      okvedHint('Напишите своими словами, подберём код ОКВЭД', false);
+      return;
+    }
+    okvedTimer = setTimeout(() => okvedFetch(query), OKVED_DEBOUNCE_MS);
+  });
+
+  input.addEventListener('keydown', function(event){
+    const list = document.getElementById('okved-list');
+    if(list.hidden){
+      if(event.key === 'ArrowDown' && this.value.trim().length >= OKVED_MIN_LENGTH){
+        okvedFetch(this.value.trim());
+        event.preventDefault();
+      }
+      return;
+    }
+    if(event.key === 'ArrowDown'){
+      event.preventDefault();
+      okvedHighlight(Math.min(okvedActive + 1, okvedItems.length - 1));
+    } else if(event.key === 'ArrowUp'){
+      event.preventDefault();
+      okvedHighlight(Math.max(okvedActive - 1, 0));
+    } else if(event.key === 'Enter'){
+      if(okvedActive >= 0){
+        event.preventDefault();
+        okvedChoose(okvedActive);
+      }
+    } else if(event.key === 'Escape'){
+      okvedClosePanel();
+    }
+  });
+
+  input.addEventListener('blur', function(){
+    setTimeout(okvedClosePanel, 120);
+  });
+});
+
+// ─── Form submit
+async function submitForm(){
+  const name    = document.getElementById('f_name').value.trim();
+  const phone   = document.getElementById('f_phone').value.trim();
+  const email   = document.getElementById('f_email').value.trim();
+  const inn     = document.getElementById('f_inn').value.trim();
+  const segment = document.getElementById('f_segment').value.trim();
+  const okvedCode = document.getElementById('f_okved_code').value.trim();
+  const okvedName = document.getElementById('f_okved_name').value.trim() || document.getElementById('f_okved').value.trim();
+
+
+  let valid = true;
+
+  // Имя
+  if(name.length < 2){ setError('f_name','err_name',true); valid=false; }
+  else { setError('f_name','err_name',false); }
+
+  // Телефон - ровно 10 цифр
+  const phoneDigits = phone.replace(/\D/g,'');
+  const fwPhone = document.getElementById('fw-phone');
+  if(phoneDigits.length !== 10){
+    fwPhone.classList.add('invalid'); fwPhone.classList.remove('valid');
+    document.getElementById('err_phone').classList.add('show');
+    valid=false;
+  } else {
+    fwPhone.classList.remove('invalid'); fwPhone.classList.add('valid');
+    document.getElementById('err_phone').classList.remove('show');
+  }
+
+  // Email
+  const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  if(!emailOk){ setError('f_email','err_email',true); valid=false; }
+  else { setError('f_email','err_email',false); }
+
+  // ИНН - 10 или 12 цифр
+  const innDigits = inn.replace(/\D/g,'');
+  if(innDigits.length !== 10 && innDigits.length !== 12){ setError('f_inn','err_inn',true); valid=false; }
+  else { setError('f_inn','err_inn',false); }
+
+  // Чекбокс
+  const consent1 = document.getElementById('f_consent1').checked;
+  const errConsent = document.getElementById('err_consent');
+  if(!consent1){ errConsent.classList.add('show'); valid=false; }
+  else { errConsent.classList.remove('show'); }
+
+  if(!valid){
+    // Скроллим к первой ошибке
+    const firstErr = document.querySelector('.field input.invalid');
+    if(firstErr) firstErr.scrollIntoView({behavior:'smooth', block:'center'});
+    return;
+  }
+
+  try{
+    const submitBtn = document.getElementById('form-submit-btn');
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Заявка отправлена';
+    const res = await fetch(apiUrl('/leads'),{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        name, phone, email, inn: innDigits, segment,
+        okved_code: okvedCode || null,
+        okved_name: okvedName || null
+      })
+    });
+    if(res.ok){
+      const data = await res.json();
+      openQuizModal(data.lead_id);
+    } else {
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Отправить заявку';
+      alert('Ошибка при отправке. Попробуйте ещё раз.');
+    }
+  } catch(e){
+    document.getElementById('formBody').style.display='none';
+    document.getElementById('formSuccess').classList.add('show');
+    openQuizModal(null);
+  }
+}
+
+// ─── Interactive benefit icons
+function pingRadar(){
+  const el=document.getElementById('ic-radar');
+  if(!el)return;
+  el.classList.remove('ping');
+  void el.offsetWidth;        // restart the ping animation
+  el.classList.add('ping');
+}
+let _barIdx=0;
+function toggleBars(){
+  const bars=document.querySelectorAll('#ic-bars .br');
+  if(!bars.length)return;
+  bars.forEach(b=>b.classList.remove('on'));
+  _barIdx=(_barIdx+1)%(bars.length+1);   // 0,1,2, then none
+  if(_barIdx<bars.length)bars[_barIdx].classList.add('on');
+}
+let _coinFlipped=false;
+function flipCoin(){
+  const el=document.getElementById('ic-coin');
+  if(!el)return;
+  _coinFlipped=!_coinFlipped;
+  el.classList.toggle('flip',_coinFlipped);
+}
+function onPhoneCountry(){
+  const s=document.getElementById('phone-country');
+  const o=s.options[s.selectedIndex];
+  document.getElementById('phone-flag').textContent=o.dataset.flag;
+  document.getElementById('phone-code').textContent=o.value.replace('+7k','+7');
+  document.getElementById('f_phone').value='';
+  document.getElementById('fw-phone').classList.remove('invalid','valid');
+  document.getElementById('err_phone').classList.remove('show');
+  document.getElementById('f_phone').focus();
+}
+function onPhoneInput(){
+  const d=document.getElementById('f_phone').value.replace(/\D/g,'');
+  const fw=document.getElementById('fw-phone');
+  if(d.length===10){fw.classList.remove('invalid');fw.classList.add('valid');document.getElementById('err_phone').classList.remove('show');}
+  else{fw.classList.remove('valid','invalid');}
+}
+function onPhoneBlur(){
+  const d=document.getElementById('f_phone').value.replace(/\D/g,'');
+  const fw=document.getElementById('fw-phone');
+  if(d.length===10){fw.classList.remove('invalid');fw.classList.add('valid');document.getElementById('err_phone').classList.remove('show');}
+  else if(d.length>0){fw.classList.remove('valid');fw.classList.add('invalid');document.getElementById('err_phone').classList.add('show');}
+}
+
+// ─── Segments modal
+const segData = [
+  {
+    tag:'E-COMMERCE', cls:'ec',
+    title:'Захват управления ключевым интернет-ресурсом',
+    systems:['Официальный сайт и интернет-магазин','Мобильное приложение','Серверы баз данных и приложений'],
+    ways:['Эксплуатация уязвимостей веб-приложений','Получение доступа к учётным записям администраторов','Атаки через подрядчиков или сторонние интеграции'],
+    consequences:['Остановка работы сервиса и потеря выручки','Утечка платёжных данных покупателей','Изменение содержимого сайта','Нарушение оказания услуг клиентам','Репутационный ущерб и потеря доверия'],
+    criteria:'Получен административный доступ к серверу или системе управления, обеспечивающей работу ресурса.'
+  },
+  {
+    tag:'FINTECH', cls:'ft',
+    title:'Несанкционированный вывод денежных средств',
+    systems:['Системы дистанционного банковского обслуживания','Бухгалтерские системы','Системы согласования платежей'],
+    ways:['Получение доступа к учётным записям сотрудников','Подмена платёжных реквизитов','Компрометация процедуры согласования платежей'],
+    consequences:['Прямые финансовые потери','Нарушение финансовой деятельности','Регуляторные санкции и штрафы','Репутационный ущерб'],
+    criteria:'Подтверждена возможность создания или изменения платёжного поручения без фактического перевода средств.'
+  },
+  {
+    tag:'SAAS', cls:'sa',
+    title:'Массовый захват управления ИТ-инфраструктурой',
+    systems:['Серверы и средства виртуализации','Доменная инфраструктура','Удалённый доступ и рабочие станции'],
+    ways:['Повышение привилегий','Получение контроля над учётными записями администраторов','Распространение доступа внутри инфраструктуры'],
+    consequences:['Потеря контроля над ИТ-инфраструктурой','Остановка деятельности компании','Риск уничтожения или шифрования данных','Массовый отток клиентов'],
+    criteria:'Получен полный административный доступ к доменной инфраструктуре либо к большинству критически важных систем.'
+  },
+  {
+    tag:'HEALTH', cls:'hl',
+    title:'Утечка конфиденциальной информации',
+    systems:['CRM и базы пациентов','Медицинские информационные системы','Файловые хранилища и архивы'],
+    ways:['Получение доступа к учётным записям сотрудников','Эксплуатация уязвимостей','Получение доступа через подрядчиков'],
+    consequences:['Утечка медицинских данных пациентов','Штрафы регулятора','Риск потери лицензии','Остановка записи на приём','Репутационный ущерб'],
+    criteria:'Подтверждено получение доступа к просмотру или выгрузке данных из целевой системы.'
+  },
+  {
+    tag:'GOV / B2G', cls:'gv',
+    title:'Компрометация учётной записи руководителя',
+    systems:['Корпоративная почта и мессенджеры','Системы электронного документооборота','Банковские сервисы'],
+    ways:['Фишинговые атаки','Подбор или перехват учётных данных','Получение доступа к устройствам руководителя'],
+    consequences:['Мошеннические действия от имени руководителя','Потеря госконтракта','Занесение в реестр недобросовестных поставщиков','Утечка коммерческой информации'],
+    criteria:'Подтверждена возможность входа в учётную запись и выполнения действий от имени руководителя.'
+  }
+];
+
+function openSegModal(i){
+  const d=segData[i];
+  const tag=document.getElementById('seg-modal-tag');
+  tag.textContent=d.tag;
+  tag.className='seg-tag '+d.cls;
+  document.getElementById('seg-modal-title').textContent=d.title;
+  document.getElementById('seg-modal-body').innerHTML=`
+    <div class="modal-section">
+      <div class="modal-section-title">Целевые системы</div>
+      <ul>${d.systems.map(s=>`<li>${s}</li>`).join('')}</ul>
+    </div>
+    <div class="modal-section">
+      <div class="modal-section-title">Способы реализации</div>
+      <ul>${d.ways.map(s=>`<li>${s}</li>`).join('')}</ul>
+    </div>
+    <div class="modal-section">
+      <div class="modal-section-title">Последствия для бизнеса</div>
+      <ul>${d.consequences.map(s=>`<li>${s}</li>`).join('')}</ul>
+    </div>
+    <div class="modal-section">
+      <div class="modal-section-title">Критерий достижения</div>
+      <div class="modal-criteria">${d.criteria}</div>
+    </div>
+  `;
+  document.getElementById('segModal').classList.add('show');
+  document.body.style.overflow='hidden';
+}
+
+function closeSegModal(){
+  document.getElementById('segModal').classList.remove('show');
+  document.body.style.overflow='';
+}
+
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeSegModal()});
+
+// ─── CTA segment personalisation
+(function(){
+  var ctaData=[
+    {badge:'Интернет-магазины',title:'Проверьте защиту<br>вашего магазина',desc:'Оставьте контакт - менеджер свяжется с вами. Без давления и обязательств.',stats:[{n:'83%',l:'торговых компаний не устояли перед атакой'},{n:'3×',l:'рост числа атак на магазины в 2025 г.'}],btn:'Проверить интернет-магазин'},
+    {badge:'Финансовые сервисы',title:'Проверьте защиту<br>вашего финтех-сервиса',desc:'Оставьте контакт - менеджер свяжется с вами. Без давления и обязательств.',stats:[{n:'9 000',l:'киберинцидентов в финсекторе за 2024 г.'},{n:'71%',l:'атак приводят к утечке данных клиентов'}],btn:'Проверить финансовый сервис'},
+    {badge:'SaaS-продукты',title:'Проверьте защиту<br>вашего SaaS-продукта',desc:'Оставьте контакт - менеджер свяжется с вами. Без давления и обязательств.',stats:[{n:'59%',l:'IT-компаний взломаны в рамках КИ Экспресс'},{n:'34 мин',l:'самый быстрый взлом инфраструктуры'}],btn:'Проверить SaaS-продукт'},
+    {badge:'Медицина и клиники',title:'Проверьте защиту<br>данных пациентов',desc:'Оставьте контакт - менеджер свяжется с вами. Без давления и обязательств.',stats:[{n:'#2',l:'место России по утечкам медданных в мире'},{n:'74%',l:'атак приводят к утечке данных пациентов'}],btn:'Проверить клинику'},
+    {badge:'Госконтракты и B2G',title:'Проверьте защиту<br>вашей B2G-компании',desc:'Оставьте контакт - менеджер свяжется с вами. Без давления и обязательств.',stats:[{n:'100%',l:'компаний с аккаунтом руководителя взломаны'},{n:'27',l:'хакерских группировок атакуют РФ-компании'}],btn:'Проверить B2G-компанию'},
+  ];
+
+  window.updateCta=function(idx){
+    var d=ctaData[idx];
+    // badge
+    var badge=document.getElementById('cta-seg-badge');
+    var badgeText=document.getElementById('cta-seg-badge-text');
+    if(badge&&badgeText){badge.style.display='block';badgeText.textContent=d.badge;}
+    // title
+    var title=document.getElementById('cta-title');
+    if(title)title.innerHTML=d.title;
+    // desc
+    var desc=document.getElementById('cta-desc');
+    if(desc)desc.textContent=d.desc;
+    // stats
+    var statsEl=document.getElementById('cta-stats');
+    if(statsEl){
+      statsEl.style.display='flex';
+      statsEl.innerHTML=d.stats.map(function(s){
+        return '<div class="cta-stat-pill"><span class="cta-stat-num">'+s.n+'</span><span class="cta-stat-label">'+s.l+'</span></div>';
+      }).join('');
+    }
+    // submit button text
+    var btn=document.getElementById('form-submit-btn');
+    if(btn)btn.innerHTML=d.btn+' <svg viewBox="0 0 16 16" fill="none" width="16" height="16"><path d="M3 8h10M9 4l4 4-4 4" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    // hidden segment field
+    var segField=document.getElementById('f_segment');
+    if(segField)segField.value=d.badge;
+  };
+})();
+const sections=document.querySelectorAll('section[id]');
+window.addEventListener('scroll',()=>{
+  const y=window.scrollY+80;
+  sections.forEach(s=>{
+    const a=document.querySelector(`.nav-links a[href="#${s.id}"]`);
+    if(a){
+      if(s.offsetTop<=y&&s.offsetTop+s.offsetHeight>y){a.style.color='var(--teal2)'}
+      else{a.style.color=''}
+    }
+  });
+},{passive:true});
+</script>
+
+<script>
+(function(){
+const cv=document.getElementById('dna-section');
+if(!cv)return;
+const ctx=cv.getContext('2d');
+const W=260,H=440,CX=130,CY=220;
+let elapsed=0,last=null;
+const PAIRS=16,AMP=48,HTOTAL=380,TURNS=2.0,BALL_R=8,RUNG_R=3.8;
+const TEAL={r:10,g:147,b:150},TEAL2={r:0,g:95,b:115};
+const RED={r:230,g:51,b:41},RED2={r:150,g:30,b:20};
+function rgba(c,a){return `rgba(${c.r},${c.g},${c.b},${a})`;}
+function proj(x,y,z){return{sx:CX+x-z*0.15,sy:CY+y-z*0.08,z};}
+function helixPos(t,strand){
+  const angle=t*TURNS*Math.PI*2+(strand===1?Math.PI:0);
+  return{x:Math.cos(angle)*AMP,y:(t-0.5)*HTOTAL,z:Math.sin(angle)*AMP};
+}
+function drawSphere(sx,sy,r,col,col2,d,a){
+  const dr=r*(0.72+d*0.28),da=a*(0.45+d*0.55);
+  ctx.beginPath();ctx.ellipse(sx+dr*0.3,sy+dr*0.35,dr*0.85,dr*0.38,0,0,Math.PI*2);
+  ctx.fillStyle=`rgba(0,0,0,${da*0.10})`;ctx.fill();
+  const g=ctx.createRadialGradient(sx-dr*0.3,sy-dr*0.32,dr*0.05,sx,sy,dr);
+  g.addColorStop(0,rgba({r:Math.min(255,col.r+80),g:Math.min(255,col.g+80),b:Math.min(255,col.b+80)},da));
+  g.addColorStop(0.45,rgba(col,da));g.addColorStop(1,rgba(col2,da*0.9));
+  ctx.beginPath();ctx.arc(sx,sy,dr,0,Math.PI*2);ctx.fillStyle=g;ctx.fill();
+  const s=ctx.createRadialGradient(sx-dr*0.25,sy-dr*0.30,0,sx,sy,dr*0.55);
+  s.addColorStop(0,`rgba(255,255,255,${da*0.72})`);s.addColorStop(1,'rgba(255,255,255,0)');
+  ctx.beginPath();ctx.arc(sx,sy,dr,0,Math.PI*2);ctx.fillStyle=s;ctx.fill();
+}
+function drawRung(pA,pB,d,a,prog){
+  const aa=proj(pA.x,pA.y,pA.z),b=proj(pB.x,pB.y,pB.z);
+  const mx=(aa.sx+b.sx)/2,my=(aa.sy+b.sy)/2;
+  const da=a*(0.4+d*0.6);
+  ctx.beginPath();
+  ctx.moveTo(mx+(aa.sx-mx)*prog,my+(aa.sy-my)*prog);
+  ctx.lineTo(mx+(b.sx-mx)*prog,my+(b.sy-my)*prog);
+  ctx.strokeStyle=`rgba(10,147,150,${da*0.55})`;ctx.lineWidth=2+d*2;ctx.lineCap='round';ctx.stroke();
+  drawSphere(mx+(aa.sx-mx)*prog,my+(aa.sy-my)*prog,RUNG_R,{r:230,g:100,b:90},RED2,d,a);
+  drawSphere(mx+(b.sx-mx)*prog,my+(b.sy-my)*prog,RUNG_R,{r:70,g:140,b:195},TEAL2,d,a);
+}
+function frame(ts){
+  if(!last)last=ts;
+  elapsed+=Math.min((ts-last)/1000,0.05);last=ts;
+  const t=elapsed;
+  ctx.clearRect(0,0,W,H);
+  const bob=Math.sin(t*0.75)*10;
+  const elems=[];
+  for(let i=0;i<PAIRS;i++){
+    const tt=i/(PAIRS-1);
+    const pA=helixPos(tt,0),pB=helixPos(tt,1);
+    elems.push({type:'rung',pA:{...pA,y:pA.y+bob},pB:{...pB,y:pB.y+bob},z:(pA.z+pB.z)/2,i});
+    elems.push({type:'ball',p:{...pA,y:pA.y+bob},z:pA.z,strand:0});
+    elems.push({type:'ball',p:{...pB,y:pB.y+bob},z:pB.z,strand:1});
+  }
+  elems.sort((a,b)=>a.z-b.z);
+  elems.forEach(el=>{
+    const d=Math.max(0,Math.min(1,(el.z+AMP)/(AMP*2)));
+    if(el.type==='ball'){
+      const{sx,sy}=proj(el.p.x,el.p.y,el.p.z);
+      drawSphere(sx,sy,BALL_R,el.strand===0?RED:TEAL,el.strand===0?RED2:TEAL2,d,1);
+    }else{
+      drawRung(el.pA,el.pB,d,1,0.62+((Math.sin(t*1.4+el.i*0.38)+1)/2)*0.38);
+    }
+  });
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+})();
+</script>
+
+<script>
+(function(){
+  var data=[
+    {t:'Захват управления сайтом или интернет-магазином',desc:'83% компаний из торговли взломаны. Остановка продаж и утечка платёжных данных - потери за считанные часы.',p:83},
+    {t:'Несанкционированный вывод денежных средств',desc:'Каждая вторая финансовая компания не устояла. Подмена реквизитов может оставаться незамеченной месяцами.',p:50},
+    {t:'Массовый захват ИТ-инфраструктуры и данных',desc:'59% SaaS-компаний теряют контроль над серверами и доменом. Массовый отток клиентов.',p:59},
+    {t:'Утечка конфиденциальных данных пациентов',desc:'74% атак на медорганизации приводят к утечке данных пациентов. Каждая вторая атака останавливает работу клиники. Штрафы, репутация, риск лицензии.',p:74},
+    {t:'Компрометация учётной записи руководителя',desc:'100% компаний с этим НС взломаны. Потеря госконтракта и занесение в реестр недобросовестных.',p:100},
+  ];
+  var labels=['Проверить интернет-магазин','Проверить финансовый сервис','Проверить SaaS-продукт','Проверить клинику','Проверить B2G-компанию'];
+  var pdfs=['files/segment_retail.pdf','files/segment_finance.pdf','files/segment_saas.pdf','files/segment_medicine.pdf','files/segment_b2g.pdf'];
+
+  function handleSelect(idx){
+    // Подсвечиваем кнопку
+    document.querySelectorAll('.hero-sec').forEach(function(s,si){
+      s.classList.toggle('active', si===idx);
+    });
+
+    var res=document.getElementById('heroRes');
+    if(!res)return;
+    var x=data[idx];
+
+    // Очищаем и строим DOM вручную
+    while(res.firstChild)res.removeChild(res.firstChild);
+    res.className='hero-res on';
+
+    var ns=document.createElement('div');
+    ns.className='hero-rns';
+    ns.textContent='Недопустимое событие';
+    res.appendChild(ns);
+
+    var rt=document.createElement('div');
+    rt.className='hero-rt';
+    rt.textContent=x.t;
+    res.appendChild(rt);
+
+    var rd=document.createElement('div');
+    rd.className='hero-rd';
+    rd.textContent=x.desc;
+    res.appendChild(rd);
+
+    var rp=document.createElement('div');
+    rp.className='hero-rp';
+
+    var bw=document.createElement('div');
+    bw.className='hero-bw';
+    var b=document.createElement('div');
+    b.className='hero-b';
+    b.style.width='0%';
+    bw.appendChild(b);
+    rp.appendChild(bw);
+
+    var pn=document.createElement('div');
+    pn.className='hero-pn';
+    pn.textContent=x.p+'% взломов';
+    rp.appendChild(pn);
+
+    res.appendChild(rp);
+
+    // Анимация бара
+    setTimeout(function(){b.style.width=x.p+'%';},50);
+
+    // Меняем CTA
+    var cta=document.querySelector('a.btn-primary');
+    if(cta)cta.textContent=labels[idx]+' →';
+
+    // Показываем кнопку исследования
+    var pdfBtn=document.getElementById('heroPdfBtn');
+    if(pdfBtn){pdfBtn.href=apiUrl('/'+pdfs[idx]);pdfBtn.classList.add('visible');}
+
+    // Обновляем CTA форму
+    updateCta(idx);
+  }
+
+  function init(){
+    var btns=document.querySelectorAll('.hero-sec');
+    if(!btns.length)return;
+    btns.forEach(function(btn,i){
+      btn.addEventListener('click',function(e){
+        e.stopPropagation();
+        handleSelect(i);
+      });
+    });
+  }
+
+  if(document.readyState==='loading'){
+    document.addEventListener('DOMContentLoaded',init);
+  }else{
+    init();
+  }
+})();
+</script>
+
+<script>
+(function(){
+const mzsteps=[
+  {title:'Заявка',        desc:'Оставляете заявку на участие в программе.',                                                                color:'#005f73',
+   icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path class="icn-fill" d="M5 3h9l5 5v13H5z"/><path d="M5 3h9l5 5v13H5z"/><path d="M14 3v5h5"/><path d="M8.4 13h7M8.4 16.4h5"/></svg>'},
+  {title:'Звонок',        desc:'Менеджер связывается с вами и уточняет детали участия.',                                                   color:'#e63329',
+   icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path class="icn-fill" d="M4 5a2 2 0 0 1 2-2h2.3a1 1 0 0 1 1 .76l1 4a1 1 0 0 1-.55 1.1L8.5 10a13 13 0 0 0 5.5 5.5l1.14-1.25a1 1 0 0 1 1.1-.27l4 1a1 1 0 0 1 .76 1V18a2 2 0 0 1-2 2A16 16 0 0 1 4 5z"/><path d="M4 5a2 2 0 0 1 2-2h2.3a1 1 0 0 1 1 .76l1 4a1 1 0 0 1-.55 1.1L8.5 10a13 13 0 0 0 5.5 5.5l1.14-1.25a1 1 0 0 1 1.1-.27l4 1a1 1 0 0 1 .76 1V18a2 2 0 0 1-2 2A16 16 0 0 1 4 5z"/></svg>'},
+  {title:'Определение НС', desc:'Формулируем Недопустимое событие, критичное именно для вашего бизнеса.',                                    color:'#0a9396',
+   icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle class="icn-fill" cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4"/><path d="M12 1.6v3.4M12 19v3.4M1.6 12H5M19 12h3.4"/><circle cx="12" cy="12" r="1.1" fill="currentColor" stroke="none"/></svg>'},
+  {title:'Подписание соглашения', desc:'Всё прозрачно и юридически оформлено.',                                                          color:'#005f73',
+   icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path class="icn-fill" d="M5 3h9l5 5v13H5z"/><path d="M5 3h9l5 5v13H5z"/><path d="M14 3v5h5"/><path d="M8.3 14.2l2 2 4-4.4"/></svg>'},
+  {title:'Проверка',      desc:'Белый хакер пытается взломать вашу компанию, останавливается на последнем шаге до Недопустимого события и формирует подробный отчёт.',          color:'#e63329',
+   icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path class="icn-fill" d="M12 2.5 5 5.2v6.2c0 4.3 3 8.2 7 9.3 4-1.1 7-5 7-9.3V5.2z"/><path d="M12 2.5 5 5.2v6.2c0 4.3 3 8.2 7 9.3 4-1.1 7-5 7-9.3V5.2z"/><path d="M9 12l2 2 4-4.4"/></svg>'},
+];
+const track=document.getElementById('mztrack');
+if(track){
+  mzsteps.forEach((s,i)=>{
+    const pos=i%2===0?'top':'bottom';
+    const col=document.createElement('div');
+    col.className='mz-col '+pos;
+    col.style.color=s.color;
+    col.innerHTML=`
+      <div class="mz-card" id="mzc-${i}">
+        <div class="mz-icon">${s.icon}</div>
+        <div class="mz-num">0${i+1}</div>
+        <div class="mz-title">${s.title}</div>
+        <div class="mz-desc">${s.desc}</div>
+      </div>
+      <div class="mz-dot" id="mzd-${i}">${i+1}</div>`;
+    col.onclick=()=>mzset(i);
+    track.appendChild(col);
+  });
+  window.mzset=function(i){
+    mzsteps.forEach((s,idx)=>{
+      const card=document.getElementById('mzc-'+idx);
+      const dot=document.getElementById('mzd-'+idx);
+      if(idx===i){card.classList.add('act');dot.style.background=s.color;}
+      else{card.classList.remove('act');dot.style.background='#6a7a90';}
+    });
+  };
+  mzset(0);
+}
+})();
+</script>

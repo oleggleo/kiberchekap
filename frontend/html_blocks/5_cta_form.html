@@ -1,0 +1,113 @@
+<!-- CTA FORM -->
+<section id="cta">
+  <div class="wrap">
+    <div class="cta-inner">
+      <div class="cta-left">
+        <div class="cta-panel-icon">
+          <svg viewBox="0 0 24 24" fill="none" width="24" height="24"><path d="M12 2L4 6v6c0 5.25 3.5 10.15 8 11.5C16.5 22.15 20 17.25 20 12V6L12 2z" stroke="#fff" stroke-width="1.6"/><path d="M9 12l2 2 4-4" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <div>
+          <div class="eyebrow">Оставить заявку</div>
+          <div id="cta-seg-badge" style="display:none;margin-bottom:10px;">
+            <span id="cta-seg-badge-text" style="display:inline-block;padding:3px 12px;border-radius:20px;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:#fff;"></span>
+          </div>
+          <h2 class="cta-title" id="cta-title">Узнайте, защищён<br>ли ваш бизнес</h2>
+          <p class="cta-desc" id="cta-desc">Оставьте контакт - менеджер свяжется с вами. Без давления и обязательств.</p>
+          <div class="cta-mesh-wrap">
+            <canvas class="cta-mesh" id="ctaShield" aria-hidden="true"></canvas>
+          </div>
+          <div id="cta-stats" style="display:none;"></div>
+        </div>
+      </div>
+      <div class="form-shell">
+        <div class="form-bar">
+          <div class="form-dots">
+            <div class="form-dot r"></div>
+            <div class="form-dot y"></div>
+            <div class="form-dot g"></div>
+          </div>
+          <div class="form-bar-title">anketa</div>
+          <div class="form-status">ready</div>
+        </div>
+        <div class="form-body" id="formBody">
+          <div class="field">
+            <label for="f_name">Имя и фамилия</label>
+            <input type="text" id="f_name" placeholder="Иван Иванов">
+            <span class="field-error" id="err_name">Введите имя и фамилию (минимум 2 символа)</span>
+          </div>
+          <div class="field">
+            <label for="f_phone">Телефон</label>
+            <div class="fw-phone" id="fw-phone">
+              <div class="fc-phone">
+                <span class="fc-flag" id="phone-flag">🇷🇺</span>
+                <span class="fc-code" id="phone-code">+7</span>
+                <span class="fc-arr">▾</span>
+                <select id="phone-country" onchange="onPhoneCountry()">
+                  <option value="+7" data-flag="🇷🇺">Россия +7</option>
+                  <option value="+375" data-flag="🇧🇾">Беларусь +375</option>
+                  <option value="+380" data-flag="🇺🇦">Украина +380</option>
+                  <option value="+7k" data-flag="🇰🇿">Казахстан +7</option>
+                  <option value="+994" data-flag="🇦🇿">Азербайджан +994</option>
+                  <option value="+374" data-flag="🇦🇲">Армения +374</option>
+                  <option value="+996" data-flag="🇰🇬">Кыргызстан +996</option>
+                  <option value="+43" data-flag="🇦🇹">Австрия +43</option>
+                  <option value="+49" data-flag="🇩🇪">Германия +49</option>
+                  <option value="+33" data-flag="🇫🇷">Франция +33</option>
+                  <option value="+44" data-flag="🇬🇧">Великобритания +44</option>
+                  <option value="+1" data-flag="🇺🇸">США +1</option>
+                  <option value="+971" data-flag="🇦🇪">ОАЭ +971</option>
+                  <option value="+86" data-flag="🇨🇳">Китай +86</option>
+                </select>
+              </div>
+              <input class="fn-phone" id="f_phone" type="tel" placeholder="912 345 67 89" oninput="onPhoneInput()" onblur="onPhoneBlur()">
+            </div>
+            <span class="field-error" id="err_phone">Введите ровно 10 цифр номера</span>
+          </div>
+          <div class="field">
+            <label for="f_email">Email</label>
+            <input type="email" id="f_email" inputmode="email" placeholder="ivan@company.ru">
+            <span class="field-error" id="err_email">Введите корректный email-адрес</span>
+          </div>
+          <div class="field">
+            <label for="f_inn">ИНН компании</label>
+            <input type="text" id="f_inn" inputmode="numeric" placeholder="7700000000" maxlength="12">
+            <span class="field-error" id="err_inn">ИНН должен содержать 10 или 12 цифр</span>
+          </div>
+          <div class="field">
+            <label for="f_okved">Вид деятельности</label>
+            <div class="okved-wrap">
+              <input type="text" id="f_okved" autocomplete="off" placeholder="Например: розничная торговля одеждой"
+                     role="combobox" aria-expanded="false" aria-autocomplete="list"
+                     aria-controls="okved-list" aria-describedby="okved-hint">
+              <span class="okved-badge" id="okved-badge" hidden></span>
+              <ul class="okved-list" id="okved-list" role="listbox" aria-label="Подходящие коды ОКВЭД" hidden></ul>
+            </div>
+            <span class="okved-hint" id="okved-hint">Напишите своими словами, подберём код ОКВЭД</span>
+          </div>
+          <input type="hidden" id="f_okved_code" value="">
+          <input type="hidden" id="f_okved_name" value="">
+          <input type="hidden" id="f_segment" value="">
+          <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px;">
+            <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;font-size:12px;color:var(--muted);line-height:1.5;">
+              <input type="checkbox" id="f_consent1" style="margin-top:2px;accent-color:var(--teal);flex-shrink:0;">
+              Я согласен на обработку персональных данных
+            </label>
+            <span class="field-error" id="err_consent">Пожалуйста, подтвердите согласие</span>
+          </div>
+          <button class="form-submit" id="form-submit-btn" onclick="submitForm()">
+            Отправить заявку
+            <svg viewBox="0 0 16 16" fill="none" width="16" height="16"><path d="M3 8h10M9 4l4 4-4 4" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+
+        </div>
+        <div class="form-success" id="formSuccess">
+          <div class="form-success-icon">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M5 12l5 5L19 7" stroke="#0a9396" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <h3>Заявка принята</h3>
+          <p>Менеджер свяжется с вами в течение рабочего дня.<br>Проверьте почту - мы пришлём подтверждение.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>

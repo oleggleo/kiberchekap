@@ -1,0 +1,37 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# --- Окружение и секреты ---
+# Файлы с реальными настройками — не в репо!
+.env
+backend/.env
+
+# --- База данных ---
+# Данные живут в PostgreSQL, старый SQLite-файл в репо не нужен
+*.db
+*.sqlite
+*.sqlite3
+
+# --- IDE ---
+.vscode/
+.idea/
+
+# --- ОС ---
+.DS_Store
+Thumbs.db
+
+# --- Логи ---
+*.log
+
+# --- Claude Code ---
+.claude/
+
+# --- Alembic ---
+backend/alembic/versions/__pycache__/
+
+check.sh

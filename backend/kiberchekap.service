@@ -1,0 +1,19 @@
+# Служба автозапуска бэкенда. Поправьте пути под свой сервер и положите файл в
+#   /etc/systemd/system/kiberchekap.service
+# затем:
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now kiberchekap
+#   sudo systemctl status kiberchekap
+[Unit]
+Description=Kiberchekap backend
+After=network.target
+
+[Service]
+WorkingDirectory=/opt/kiberchekap/backend
+ExecStart=/opt/kiberchekap/backend/venv/bin/uvicorn main:app --host 127.0.0.1 --port 8000
+Restart=always
+RestartSec=3
+User=www-data
+
+[Install]
+WantedBy=multi-user.target
